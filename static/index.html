@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Recon Assistant | Bug Bounty Intelligence Platform</title>
+  <meta name="description" content="AI-powered bug bounty recon assistant. Automated subdomain enumeration, vulnerability detection, and intelligent attack surface analysis." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-icon">◈</span>
+      <span class="brand-name">ReconAI</span>
+      <span class="brand-tag">Bug Bounty Intelligence</span>
+    </div>
+    <div class="topbar-tools" id="topbar-tools"><!-- filled by JS --></div>
+    <div class="topbar-status" id="system-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+    <div class="topbar-model">
+      <span class="label">Model:</span>
+      <span id="model-name" class="mono">—</span>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">New Scan</h2>
+        <div class="scan-form">
+          <div class="input-group">
+            <span class="input-prefix">◎</span>
+            <input type="text" id="domain-input" class="domain-input"
+              placeholder="target.com" autocomplete="off" spellcheck="false" />
+          </div>
+          <details class="scan-options-details" open>
+            <summary class="scan-options-summary">⚙ Scan Options</summary>
+            <div class="scan-options-body">
+              <label class="toggle-label" title="amass does deeper enumeration but takes 5–15 min longer">
+                <input type="checkbox" id="amass-toggle" checked />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-text">
+                  <span class="toggle-name">Include amass</span>
+                  <span class="toggle-hint">Slower · deeper subdomain coverage</span>
+                </span>
+              </label>
+            </div>
+          </details>
+          <button class="btn-scan" id="btn-start-scan">
+            <span class="btn-icon">⚡</span> Launch Recon
+          </button>
+        </div>
+      </div>
+
+      <!-- Progress Panel -->
+      <div class="progress-panel" id="progress-panel" style="display:none">
+        <div class="progress-header">
+          <span id="progress-domain" class="mono"></span>
+          <span id="progress-pct" class="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-bar"></div>
+        </div>
+        <div class="progress-task" id="progress-task">Initializing...</div>
+        <div class="progress-stats" id="progress-stats"></div>
+        <button class="btn-stop" id="btn-stop-scan" title="Stop scan and keep collected data">
+          ⏹ Stop Scan
+        </button>
+      </div>
+
+      <!-- Scan History -->
+      <div class="sidebar-section">
+        <h2 class="sidebar-title">Scan History
+          <button class="btn-refresh" id="btn-refresh-scans" title="Refresh">↻</button>
+        </h2>
+        <div id="scan-history" class="scan-history">
+          <div class="empty-state">No scans yet</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Panel -->
+    <main class="main-panel">
+      <!-- Welcome Screen -->
+      <div id="welcome-screen" class="welcome-screen">
+        <div class="welcome-glow"></div>
+        <div class="welcome-content">
+          <div class="welcome-icon">◈</div>
+          <h1>Bug Bounty Recon Assistant</h1>
+          <p class="welcome-subtitle">AI-powered attack surface analysis. Enter a domain to begin reconnaissance.</p>
+          <!-- live tool status cards — populated by JS from /api/health -->
+          <div class="feature-grid" id="feature-grid">
+            <div class="feature-card" data-tool="subfinder">
+              <span class="feature-icon">🔍</span>
+              <span class="feature-title">Subdomain Enum</span>
+              <span class="feature-desc mono">subfinder</span>
+              <span class="tool-badge" id="badge-subfinder">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="amass">
+              <span class="feature-icon">🗺️</span>
+              <span class="feature-title">Deep Enum</span>
+              <span class="feature-desc mono">amass</span>
+              <span class="tool-badge" id="badge-amass">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="httpx">
+              <span class="feature-icon">🌐</span>
+              <span class="feature-title">HTTP Probing</span>
+              <span class="feature-desc mono">httpx</span>
+              <span class="tool-badge" id="badge-httpx">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="gau">
+              <span class="feature-icon">🔗</span>
+              <span class="feature-title">URL Harvest</span>
+              <span class="feature-desc mono">gau</span>
+              <span class="tool-badge" id="badge-gau">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="waybackurls">
+              <span class="feature-icon">⏳</span>
+              <span class="feature-title">Wayback URLs</span>
+              <span class="feature-desc mono">waybackurls</span>
+              <span class="tool-badge" id="badge-waybackurls">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="naabu">
+              <span class="feature-icon">🚪</span>
+              <span class="feature-title">Port Scanning</span>
+              <span class="feature-desc mono">naabu</span>
+              <span class="tool-badge" id="badge-naabu">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="nuclei">
+              <span class="feature-icon">💀</span>
+              <span class="feature-title">Vuln Scanning</span>
+              <span class="feature-desc mono">nuclei</span>
+              <span class="tool-badge" id="badge-nuclei">checking...</span>
+            </div>
+            <div class="feature-card" data-tool="ai">
+              <span class="feature-icon">🧠</span>
+              <span class="feature-title">AI Analysis</span>
+              <span class="feature-desc mono">llama-3.3-70b</span>
+              <span class="tool-badge" id="badge-ai">checking...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan Results Panel -->
+      <div id="results-panel" class="results-panel" style="display:none">
+        <div class="results-header">
+          <div class="results-target">
+            <span class="results-domain" id="results-domain"></span>
+            <span class="results-status-badge" id="results-status-badge">running</span>
+          </div>
+          <div class="results-actions">
+            <button class="btn-action" id="btn-download-md" title="Download Markdown Report" style="display:none">
+              ↓ Report
+            </button>
+            <button class="btn-action" id="btn-download-json" title="Download JSON" style="display:none">
+              ↓ JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar" id="stats-bar"></div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" data-tab="chat">💬 AI Chat</button>
+          <button class="tab" data-tab="findings">🎯 Findings</button>
+          <button class="tab" data-tab="hosts">🌐 Hosts</button>
+          <button class="tab" data-tab="intel">🔬 Intel</button>
+          <button class="tab" data-tab="vulns">💀 Vulns</button>
+          <button class="tab" data-tab="paths">⚔️ Attack Paths</button>
+        </div>
+
+        <!-- Chat Tab -->
+        <div class="tab-content active" id="tab-chat">
+          <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-welcome">
+                <span class="chat-welcome-icon">🧠</span>
+                <p>AI analysis will appear here once the scan completes. You can also ask follow-up questions.</p>
+              </div>
+            </div>
+            <div class="chat-input-area">
+              <div class="chat-input-wrap">
+                <textarea id="chat-input" class="chat-input"
+                  placeholder="Ask about attack vectors, specific endpoints, or request a deeper analysis..."
+                  rows="1"></textarea>
+                <button class="btn-send" id="btn-send">
+                  <span>▶</span>
+                </button>
+              </div>
+              <div class="chat-hints">
+                <button class="hint-chip" data-hint="What are the highest priority targets and why?">Top targets?</button>
+                <button class="hint-chip" data-hint="Explain the SSRF attack vectors in detail with payloads">SSRF payloads</button>
+                <button class="hint-chip" data-hint="What quick wins should I test first?">Quick wins?</button>
+                <button class="hint-chip" data-hint="Analyze the open ports for potential attack vectors">Port analysis</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Findings Tab -->
+        <div class="tab-content" id="tab-findings">
+          <div class="findings-grid" id="findings-grid"></div>
+        </div>
+
+        <!-- Hosts Tab -->
+        <div class="tab-content" id="tab-hosts">
+          <div class="hosts-filter-bar">
+            <input type="text" class="filter-input" id="hosts-filter" placeholder="Filter hosts..." />
+            <select class="filter-select" id="hosts-score-filter">
+              <option value="">All scores</option>
+              <option value="high">HIGH</option>
+              <option value="medium">MEDIUM</option>
+              <option value="low">LOW</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="hosts-table">
+              <thead>
+                <tr>
+                  <th>URL</th><th>Status</th><th>Title</th><th>Tech</th><th>Score</th><th>Tags</th>
+                </tr>
+              </thead>
+              <tbody id="hosts-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Intel Tab -->
+        <div class="tab-content" id="tab-intel">
+          <div class="intel-grid" id="intel-grid"></div>
+        </div>
+
+        <!-- Vulns Tab -->
+        <div class="tab-content" id="tab-vulns">
+          <div class="vulns-list" id="vulns-list"></div>
+        </div>
+
+        <!-- Attack Paths Tab -->
+        <div class="tab-content" id="tab-paths">
+          <div class="paths-list" id="paths-list"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
